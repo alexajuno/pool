@@ -1,0 +1,13 @@
+[Unit]
+Description=pool: runs repos' checks in pods that scale with the queue and the machine
+After=docker.service
+
+[Service]
+ExecStart=%h/projects/pool/bin/pool serve
+Restart=on-failure
+RestartSec=5
+# Its pods' checks run in docker; stopping the pool leaves them, and its next start restarts their pods.
+KillMode=process
+
+[Install]
+WantedBy=default.target

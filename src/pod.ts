@@ -79,7 +79,8 @@ export async function start(spec: Spec, n: number): Promise<Pod> {
     await must(run(["docker", "run", "-d", "--name", container,
       "--label", `pool.repo=${spec.name}`, "--label", `pool.pod=${n}`,
       ...(spec.services ? ["--network", spec.services.network] : []),
-      "-v", `${dirOf(spec, n)}:${spec.pod.workdir}`, "-w", spec.pod.workdir, ...env, spec.pod.image]), `starting pod ${n}`);
+      "-v", `${dirOf(spec, n)}:${spec.pod.workdir}`, "-w", spec.pod.workdir, ...(spec.pod.user ? ["--user", spec.pod.user] : []),
+      ...env, spec.pod.image, ...(spec.pod.command ?? [])]), `starting pod ${n}`);
   }
   return get(spec, n);
 }

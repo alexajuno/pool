@@ -3,15 +3,18 @@ import { spawn } from "node:child_process";
 export interface Ran { code: number; stdout: string; stderr: string }
 
 // Runs a command with its arguments, no shell, and gives back its code and output; it never throws on a non-zero exit.
-export function run(argv: string[], options: { cwd?: string; input?: string } = {}): Promise<Ran> {
+export function run(argv: string[], options: { cwd?: string; input?: string; env?: Record<string, string> } = {}): Promise<Ran> {
   return new Promise((done) => {
-    const child = spawn(argv[0]!, argv.slice(1), { cwd: options.cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(argv[0]!, argv.slice(1), { cwd: options.cwd, env: options.env ? { ...process.env, ...options.env } : undefined, stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
     let stdout = "", stderr = "";
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
+    child.stdout!.on("data", (d) => (stdout += d));
+    child.stderr!.on("data", (d) => (stderr += d));
     child.on("error", (error) => done({ code: 127, stdout, stderr: stderr + String(error) }));
     child.on("close", (code) => done({ code: code ?? 1, stdout, stderr }));
-    child.stdin.end(options.input ?? "");
+    if (child.stdin) {
+      child.stdin.on("error", () => {}); // a command that ends before reading all of it
+      child.stdin.end(options.input);
+    }
   });
 }
 

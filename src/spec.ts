@@ -11,6 +11,8 @@ export interface Spec {
   services?: { up: string; network: string }; // what the pods share, started in source, and the network they join
   pod: {
     image: string;
+    command?: string[]; // what the container runs, for an image whose own command ends at once
+    user?: string; // who the checks run as, for an image whose own user is root
     workdir: string; // where the pod's checkout sits in its container
     env: Record<string, string>; // {n} is the pod's number
     request: { memory: string; cpu: number }; // what a pod asks of the machine, as Kubernetes' requests
