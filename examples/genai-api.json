@@ -1,0 +1,50 @@
+{
+  "name": "genai-api",
+  "source": "~/projects/genai/api",
+  "copy": [
+    ".env",
+    "vendor"
+  ],
+  "services": {
+    "up": "docker compose up -d pgsql redis clickhouse",
+    "network": "genai-api_sail"
+  },
+  "pod": {
+    "image": "genai-api-laravel.test",
+    "workdir": "/var/www/html",
+    "env": {
+      "LARAVEL_SAIL": "1",
+      "XDEBUG_MODE": "off",
+      "DB_DATABASE": "testing_p{n}",
+      "CLICKHOUSE_DATABASE": "testing_p{n}",
+      "REDIS_PREFIX": "genai-api-p{n}-"
+    },
+    "request": {
+      "memory": "900M",
+      "cpu": 4
+    },
+    "make": "docker exec genai-api-pgsql-1 sh -c 'dropdb --if-exists -U \"$POSTGRES_USER\" testing_p{n} && createdb -U \"$POSTGRES_USER\" testing_p{n}'",
+    "drop": "docker exec genai-api-pgsql-1 sh -c 'dbs=$(psql -U \"$POSTGRES_USER\" -d postgres -Atc \"select datname from pg_database where datname ~ \\$\\$^testing_p{n}(_test_[0-9]+)?\\Z\\$\\$\") && for d in $dbs; do dropdb -U \"$POSTGRES_USER\" \"$d\" || exit 1; done'"
+  },
+  "install": {
+    "lock": "composer.lock",
+    "run": "composer install --no-interaction --quiet"
+  },
+  "refresh": "composer dump-autoload --optimize --no-scripts --quiet",
+  "checks": [
+    {
+      "name": "Pint",
+      "run": "./vendor/bin/pint --format=agent"
+    },
+    {
+      "name": "PHPStan",
+      "run": "./vendor/bin/phpstan analyse --no-progress --memory-limit=1G"
+    },
+    {
+      "name": "TIA tests",
+      "run": "FEATURE_WORKFLOW=false API_FREE_RATE_LIMIT_MINUTE=20 ./vendor/bin/pest --tia --filtered --parallel --processes=4"
+    }
+  ],
+  "min": 1,
+  "max": 3
+}

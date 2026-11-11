@@ -1,0 +1,10 @@
+{
+  "name": "pool",
+  "private": true,
+  "type": "module",
+  "description": "Runs repos’ checks for many coding sessions at once, in pods that scale with the queue and the machine’s room.",
+  "bin": { "pool": "bin/pool" },
+  "engines": { "node": ">=24" },
+  "scripts": { "check": "tsc --noEmit" },
+  "devDependencies": { "@types/node": "^24", "typescript": "^5.9" }
+}
