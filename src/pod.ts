@@ -79,11 +79,15 @@ export async function start(spec: Spec, n: number): Promise<Pod> {
     await must(run(["docker", "run", "-d", "--name", container,
       "--label", `pool.repo=${spec.name}`, "--label", `pool.pod=${n}`,
       ...(spec.services ? ["--network", spec.services.network] : []),
-      "-v", `${dirOf(spec, n)}:${spec.pod.workdir}`, "-w", spec.pod.workdir, ...(spec.pod.user ? ["--user", spec.pod.user] : []),
+      // The checkout's .git names the repo's git folder by its path here, so the container sees it at that path too.
+      "-v", `${dirOf(spec, n)}:${spec.pod.workdir}`, "-v", `${await gitDir(spec)}:${await gitDir(spec)}`, "-w", spec.pod.workdir, ...(spec.pod.user ? ["--user", spec.pod.user] : []),
       ...env, spec.pod.image, ...(spec.pod.command ?? [])]), `starting pod ${n}`);
   }
   return get(spec, n);
 }
+
+const gitDir = async (spec: Spec) =>
+  (await must(run(["git", "-C", spec.source, "rev-parse", "--path-format=absolute", "--git-common-dir"]), `finding ${spec.name}’s git folder`)).stdout.trim();
 
 export async function stop(spec: Spec, n: number): Promise<Pod> {
   if (await running(containerOf(spec, n))) await must(run(["docker", "stop", "-t", "10", containerOf(spec, n)]), `stopping pod ${n}`);

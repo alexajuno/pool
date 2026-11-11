@@ -54,6 +54,7 @@ export async function check(spec: Spec, n: number, worktree: string, id: string,
     await must(run(["git", "-C", pod, "checkout", "-q", "-B", branchOf(spec, n), snapshot]), "checking the snapshot out in the pod");
     say(`pool: ${worktree}${result.head ? ` at ${result.head.slice(0, 7)}` : ""} in pod ${spec.name}-${n}`);
     await install(spec, n, fd);
+    const base = await settled(pod); // what the install wrote is not the checks' to give back
     result.code = 0;
     for (const c of spec.checks) {
       if (signal.aborted) throw new Error("stopped");
@@ -63,7 +64,7 @@ export async function check(spec: Spec, n: number, worktree: string, id: string,
       result.checks.push({ name: c.name, passed });
       if (!passed) result.code = 1;
     }
-    await giveBack(spec, n, worktree, snapshot, id, result, say);
+    await giveBack(spec, n, worktree, base, id, result, say);
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
     result.code = 2;
@@ -108,13 +109,20 @@ async function install(spec: Spec, n: number, fd: number) {
   await writeFile(file, JSON.stringify({ lock, tree }));
 }
 
-// What the checks wrote in the pod goes back to the worktree, or into a patch when the session edited those lines since.
-async function giveBack(spec: Spec, n: number, worktree: string, snapshot: string, id: string, result: Result, say: (l: string) => void) {
+// The pod's files as a tree, as they stand.
+async function settled(pod: string): Promise<string> {
+  await must(run(["git", "-C", pod, "add", "-A"]), "reading the pod’s files");
+  return (await must(run(["git", "-C", pod, "write-tree"]), "reading the pod’s files")).stdout.trim();
+}
+
+// What the checks wrote in the pod since base goes back to the worktree, or into a patch when the session edited those
+// lines since. What the install wrote before base, such as assets a package's scripts publish, stays in the pod.
+async function giveBack(spec: Spec, n: number, worktree: string, base: string, id: string, result: Result, say: (l: string) => void) {
   const pod = pods.dirOf(spec, n);
-  await run(["git", "-C", pod, "add", "-A"]);
-  if ((await run(["git", "-C", pod, "diff", "--cached", "--quiet", snapshot])).code === 0) return;
-  const files = (await run(["git", "-C", pod, "diff", "--cached", "--name-only", snapshot])).stdout.trim().split("\n").filter(Boolean);
-  const patch = (await run(["git", "-C", pod, "diff", "--cached", "--binary", snapshot])).stdout;
+  const after = await settled(pod);
+  if (after === base) return;
+  const files = (await run(["git", "-C", pod, "diff", "--name-only", base, after])).stdout.trim().split("\n").filter(Boolean);
+  const patch = (await run(["git", "-C", pod, "diff", "--binary", base, after])).stdout;
   if ((await run(["git", "-C", worktree, "apply", "--binary"], { input: patch })).code === 0) {
     result.written = files;
     say("== written back to the worktree:");

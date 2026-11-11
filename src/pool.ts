@@ -48,10 +48,15 @@ let cfg: config.Config;
 const file = () => join(DATA, "state.json");
 const now = () => Date.now() / 1000;
 
-async function save() {
-  await mkdir(DATA, { recursive: true });
-  await writeFile(`${file()}.tmp`, JSON.stringify({ line, done, peaks }, null, 1));
-  await rename(`${file()}.tmp`, file());
+// One write at a time, each of the state as it is when its turn comes: two at once raced over the same temporary file.
+let saving: Promise<void> = Promise.resolve();
+function save(): Promise<void> {
+  saving = saving.then(async () => {
+    await mkdir(DATA, { recursive: true });
+    await writeFile(`${file()}.tmp`, JSON.stringify({ line, done, peaks }, null, 1));
+    await rename(`${file()}.tmp`, file());
+  }).catch((error) => console.error("pool: saving the state", error));
+  return saving;
 }
 
 export async function start() {
